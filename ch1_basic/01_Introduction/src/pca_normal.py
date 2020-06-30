@@ -70,8 +70,11 @@ def readXYZfile(filename, Separator):
     x = [float(data[0]) for data[0] in data[0]]
     y = [float(data[1]) for data[1] in data[1]]
     z = [float(data[2]) for data[2] in data[2]]
+    r = [float(data[3]) for data[3] in data[3]]
+    g = [float(data[4]) for data[4] in data[4]]
+    b = [float(data[5]) for data[5] in data[5]]
     print("读入点的个数为:{}个".format(num))
-    point = [x, y, z]
+    point = [x, y, z, r, g, b]
     return point
 
 # 功能: 显示三维点云
@@ -89,6 +92,33 @@ def displayCloud(cloud):
     #显示
     plt.show()
 
+# 功能: 将TXT格式的点云文件转成ply格式
+# 输入:
+#       filename: 文件路径
+def create_ply(pointcloud, filename, path):
+    savefilepath = os.path.join(path, filename)
+    pointcloud = pointcloud.reshape(-1,6)
+    np.savetxt(savefilepath, pointcloud, fmt = '%f %f %f %f %f %f')
+    # 利用write() 在头部插入ply_header
+    ply_header = '''ply
+    		format ascii 1.0
+    		element vertex %(vert_num)d
+    		property float x
+    		property float y
+    		property float z
+    		property uchar red
+    		property uchar green
+    		property uchar blue
+    		end_header
+    		\n
+    		'''
+
+    with open(filename, 'r+') as f:
+        old = f.read()
+        f.seek(0)
+        f.write(ply_header%dict(vert_num = len(pointcloud)))
+        f.write(old)
+            
 
 def main():
     # 指定点云路径
@@ -100,24 +130,33 @@ def main():
     abs_path = os.path.abspath(os.path.dirname(__file__)) # 获取当前文件绝对路径
     filename = os.path.join(abs_path, 'car_0001.txt') # 数据集文件路径
     Separator = ',' # 分隔符
+
+    # 从TXT文件中获取点云信息
     point_cloud = readXYZfile(filename, Separator)
-    displayCloud(point_cloud)
-    array = np.array(point_cloud)
+    displayCloud(point_cloud) # 利用matplotlib画出点云
+    point_cloud = np.array(point_cloud) # List to np.array
+    point_cloud = point_cloud.transpose()
+    print(point_cloud.shape)
 
+    # Create point cloud file ".ply" (如果需要.ply文件可以使用下面的代码)
+    # plyfile = 'car_0001.ply'
+    # create_ply(array.transpose(), plyfile, abs_path)
+    # filename = os.path.join(abs_path, plyfile)
 
-    # 加载原始点云
-    cloud = PyntCloud(array)
-    point_cloud_pynt = PyntCloud.from_file(filename)
-    point_cloud_o3d = point_cloud_pynt.to_instance("open3d", mesh=False)
+    # 加载原始点云(利用open3d)
+    # point_cloud_pynt = PyntCloud.from_file(filename)
+    # point_cloud_o3d = point_cloud_pynt.to_instance("open3d", mesh=False)
     # o3d.visualization.draw_geometries([point_cloud_o3d]) # 显示原始点云
 
     # 从点云中获取点，只对点进行处理
-    points = point_cloud_pynt.points
-    print('total points number is:', points.shape[0])
+    # points = point_cloud_pynt.points
+    # print('total points number is:', points.shape[0])
+    print('total points number is:', point_cloud.shape[0])
 
     # 用PCA分析点云主方向
     # w: eigenvalues
     # v: eigenvector
+    points = point_cloud[:, 0:3]
     w, v = PCA(points)
     point_cloud_vector = v[:, 2] #点云主方向对应的向量
     print('the main orientation of this pointcloud is: ', point_cloud_vector)
