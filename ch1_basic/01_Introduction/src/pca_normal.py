@@ -22,19 +22,18 @@ def PCA(data, correlation=False, sort=True):
     # Normalized by the center
     N = np.size(data, 0) # the size of the matrix (row size)
     data_mean = np.mean(data, axis = 0) # [1*3]
-    data_norm = data - data_mean # [N*3]
+    data_norm = data - data_mean.T # [N*3]
 
     # Compute Covariance matrix or Correlation coefficient matrix
-    if correlation == False:
+    if correlation == True:
         H = np.corrcoef(data_norm, rowvar = False, bias = False)
     else:
-        H = np.cov(data_norm, rowvar = False, bias = False) # H[3*3],以列为变量,标准化除以n-1
+        H = np.cov(data_norm, rowvar = False, bias = True) # H[3*3],以列为变量,标准化除以n-1
 
     # Compute SVD
     U, sigma, VT = np.linalg.svd(H) # U: eigenvector matrix; sigma: eigenvalue matrix
     eigenvectors = U            # [3*3] 
     eigenvalues = sigma     #[1*3]
-
     # 屏蔽结束
 
     if sort:
@@ -50,7 +49,7 @@ def PCA(data, correlation=False, sort=True):
 #       filename: 文件名
 #       Separator: 分隔符号
 # 输出:
-#       point[x,y,z]: 点云坐标数组
+#       point[x,y,z]: 点云坐标list
 def readXYZfile(filename, Separator):
     data = [[],[],[],[],[],[]]
     
@@ -78,6 +77,8 @@ def readXYZfile(filename, Separator):
     return point
 
 # 功能: 显示三维点云
+# 输入:
+#       cloud: 点云, 3*N
 def displayCloud(cloud):
     #开始绘图
     fig=plt.figure(dpi=120)
@@ -94,7 +95,9 @@ def displayCloud(cloud):
 
 # 功能: 将TXT格式的点云文件转成ply格式
 # 输入:
-#       filename: 文件路径
+#       filename: 文件名
+#       path: 绝对路径
+#       pointcloud: 点云数组, N*3
 def create_ply(pointcloud, filename, path):
     savefilepath = os.path.join(path, filename)
     pointcloud = pointcloud.reshape(-1,6)
@@ -118,25 +121,52 @@ def create_ply(pointcloud, filename, path):
         f.seek(0)
         f.write(ply_header%dict(vert_num = len(pointcloud)))
         f.write(old)
-            
+
+# 功能:根据PCA得到的特征向量变换坐标基并显示
+# 输入:
+#       pointcloud: 原始点云数组, N*3
+#       vector: 特征向量
+# 输出:
+#       变换后的点云坐标
+def pcl_decoder(pointcloud, vector):
+    pointcloud_new  = np.dot(pointcloud, vector)
+    pcd = o3d.geometry.PointCloud() # 创建一个pointcloud对象(经过PCL转换后的数据)
+    pcd.points = o3d.utility.Vector3dVector(pointcloud_new) # 读入点云数据的x,y,z
+    o3d.visualization.draw_geometries([pcd]) # 可视化
+    return pointcloud_new
+
+# 功能: 利用PCA方法和knn循环计算点云中每个点的法向量
+# 输入: 
+#       pcd: PointCloud对象
+#       iter_n: 迭代次数(点云中点的个数)
+#       knn: 邻近点个数
+# 输出:
+#       normals: 法向量
+def get_normal(pcd, iter_n, knn):
+    # Build KDTree from the point cloud
+    pcd_tree = o3d.geometry.KDTreeFlann(pcd)
+    normals =[]
+    for i in range(iter_n):
+        [_, idx, _] = pcd_tree.search_knn_vector_3d(pcd.points[i], knn)  
+        nearest_points = np.asarray(pcd.points)[idx,:]
+        w, v = PCA(nearest_points)
+        normals.append(v[:,2])
+    
+    return normals
+
 
 def main():
     # 指定点云路径
-    # cat_index = 10 # 物体编号，范围是0-39，即对应数据集中40个物体
-    # root_dir = '/Users/renqian/cloud_lesson/ModelNet40/ply_data_points' # 数据集路径
-    # cat = os.listdir(root_dir)
-    # filename = os.path.join(root_dir, cat[cat_index],'train', cat[cat_index]+'_0001.ply') # 默认使用第一个点云
-
     abs_path = os.path.abspath(os.path.dirname(__file__)) # 获取当前文件绝对路径
     filename = os.path.join(abs_path, 'car_0001.txt') # 数据集文件路径
-    Separator = ',' # 分隔符
-
+    
     # 从TXT文件中获取点云信息
-    point_cloud = readXYZfile(filename, Separator)
-    displayCloud(point_cloud) # 利用matplotlib画出点云
-    point_cloud = np.array(point_cloud) # List to np.array
-    point_cloud = point_cloud.transpose()
-    print(point_cloud.shape)
+    Separator = ',' # 分隔符
+    pointcloud = readXYZfile(filename, Separator)
+    # displayCloud(point_cloud) # 利用matplotlib画出点云
+    pointcloud = np.array(pointcloud) # List to np.array
+    pointcloud = pointcloud.transpose()
+    print(pointcloud.shape)
 
     # Create point cloud file ".ply" (如果需要.ply文件可以使用下面的代码)
     # plyfile = 'car_0001.ply'
@@ -144,38 +174,50 @@ def main():
     # filename = os.path.join(abs_path, plyfile)
 
     # 加载原始点云(利用open3d)
-    # point_cloud_pynt = PyntCloud.from_file(filename)
-    # point_cloud_o3d = point_cloud_pynt.to_instance("open3d", mesh=False)
-    # o3d.visualization.draw_geometries([point_cloud_o3d]) # 显示原始点云
+    pcd = o3d.geometry.PointCloud() # 创建一个pointcloud对象pcd
+    pcd.points = o3d.utility.Vector3dVector(pointcloud[:,0:3]) # 读入点云数据的x,y,z
+    # o3d.visualization.draw_geometries([pcd]) # 显示原始点云
 
     # 从点云中获取点，只对点进行处理
-    # points = point_cloud_pynt.points
-    # print('total points number is:', points.shape[0])
-    print('total points number is:', point_cloud.shape[0])
+    points = pcd.points 
+    print('total points number is:', pointcloud.shape[0])
+    
 
     # 用PCA分析点云主方向
     # w: eigenvalues
     # v: eigenvector
-    points = point_cloud[:, 0:3]
     w, v = PCA(points)
     point_cloud_vector = v[:, 2] #点云主方向对应的向量
     print('the main orientation of this pointcloud is: ', point_cloud_vector)
-    # TODO: 此处只显示了点云，还没有显示PCA
-    # o3d.visualization.draw_geometries([point_cloud_o3d])
+    # Decoder: 根据不同成分来还原point cloud
+    new_vector = np.zeros((3,3))
+    new_vector2 = np.zeros((3,3))
+    new_vector3 = np.zeros((3,3))
+    new_vector[:, 0] = v[:,0] # 仅保留主向量
+    new_vector2[:, 0:2] = v[:,0:2] # 保留第一和第二分量
+    new_vector3[:,:] = v[:,:] #保留所有分量
+    #point_cloud_new = pcl_decoder(points, new_vector)
+    #point_cloud_new2 = pcl_decoder(points, new_vector2)
+    #point_cloud_new3 = pcl_decoder(points, new_vector3)
+    
+    # 在原始点云中画出不同分量的方向
+    # 待实现....
     
     # 循环计算每个点的法向量
-    pcd_tree = o3d.geometry.KDTreeFlann(point_cloud_o3d)
-    normals = []
     # 作业2
     # 屏蔽开始
-
-    # 由于最近邻搜索是第二章的内容，所以此处允许直接调用open3d中的函数
+    iter_n = pointcloud.shape[0] # 原始点数(循环次数)
+    knn_n = 5 # 邻近点个数
+    normals = get_normal(pcd, iter_n, knn_n)
 
     # 屏蔽结束
     normals = np.array(normals, dtype=np.float64)
     # TODO: 此处把法向量存放在了normals中
-    point_cloud_o3d.normals = o3d.utility.Vector3dVector(normals)
-    o3d.visualization.draw_geometries([point_cloud_o3d])
+    pcd.normals = o3d.utility.Vector3dVector(normals)
+    o3d.visualization.draw_geometries([pcd])
+    
+    # 显示法向量
+    # 待实现....
 
 
 if __name__ == '__main__':
