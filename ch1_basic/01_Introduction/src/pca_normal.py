@@ -47,10 +47,10 @@ def PCA(data, correlation=False, sort=True):
 # 功能:读入点云文件
 # 输入:
 #       filename: 文件名
-#       Separator: 分隔符号
+#       Separator: 分隔符号, default = " "
 # 输出:
-#       point[x,y,z]: 点云坐标list
-def readXYZfile(filename, Separator):
+#       point(np.array): 点云数据, N*6
+def readXYZfile(filename, Separator = " "):
     data = [[],[],[],[],[],[]]
     
     num = 0
@@ -69,12 +69,16 @@ def readXYZfile(filename, Separator):
     x = [float(data[0]) for data[0] in data[0]]
     y = [float(data[1]) for data[1] in data[1]]
     z = [float(data[2]) for data[2] in data[2]]
-    r = [float(data[3]) for data[3] in data[3]]
-    g = [float(data[4]) for data[4] in data[4]]
-    b = [float(data[5]) for data[5] in data[5]]
+    nx = [float(data[3]) for data[3] in data[3]]
+    ny = [float(data[4]) for data[4] in data[4]]
+    nz = [float(data[5]) for data[5] in data[5]]
     print("读入点的个数为:{}个".format(num))
-    point = [x, y, z, r, g, b]
+    point = [x, y, z, nx, ny, nz]
+    point = np.array(point) # list to np.array 
+
+    point = point.transpose() # 6*N to N*6
     return point
+
 
 # 功能: 显示三维点云
 # 输入:
@@ -129,7 +133,32 @@ def create_ply(pointcloud, filename, path):
 # 输出:
 #       变换后的点云坐标
 def pcl_decoder(pointcloud, vector):
+    '''
+    mean = np.mean(pointcloud, axis = 0)
+    points = [
+            [vector[:,0]],
+            [vector[:,1]],
+            [vector[:,2]],
+            [0, 0, 0],
+    ]
+    lines = [
+            [0,3],
+            [1,3],
+            [2,3],
+    ]
+    colors = [
+        [1,0,0],
+        [0,1,0],
+        [0,0,1],
+    ]
+    line_set = o3d.geometry.LineSet(
+        points = o3d.utility.Vector3dVector(vector),
+        lines = o3d.utility.Vector2iVector(lines),
+    )
+    line_set.colors = o3d.utility.Vector3dVector(colors)
+    '''
     pointcloud_new  = np.dot(pointcloud, vector)
+
     pcd = o3d.geometry.PointCloud() # 创建一个pointcloud对象(经过PCL转换后的数据)
     pcd.points = o3d.utility.Vector3dVector(pointcloud_new) # 读入点云数据的x,y,z
     o3d.visualization.draw_geometries([pcd]) # 可视化
@@ -157,67 +186,77 @@ def get_normal(pcd, iter_n, knn):
 
 def main():
     # 指定点云路径
-    abs_path = os.path.abspath(os.path.dirname(__file__)) # 获取当前文件绝对路径
-    filename = os.path.join(abs_path, 'car_0001.txt') # 数据集文件路径
+    #abs_path = os.path.abspath(os.path.dirname(__file__)) # 获取当前文件绝对路径
+    #filename = os.path.join(abs_path, 'car_0001.txt') # 数据集文件路径
     
-    # 从TXT文件中获取点云信息
-    Separator = ',' # 分隔符
-    pointcloud = readXYZfile(filename, Separator)
-    # displayCloud(point_cloud) # 利用matplotlib画出点云
-    pointcloud = np.array(pointcloud) # List to np.array
-    pointcloud = pointcloud.transpose()
-    print(pointcloud.shape)
-
-    # Create point cloud file ".ply" (如果需要.ply文件可以使用下面的代码)
-    # plyfile = 'car_0001.ply'
-    # create_ply(array.transpose(), plyfile, abs_path)
-    # filename = os.path.join(abs_path, plyfile)
-
-    # 加载原始点云(利用open3d)
-    pcd = o3d.geometry.PointCloud() # 创建一个pointcloud对象pcd
-    pcd.points = o3d.utility.Vector3dVector(pointcloud[:,0:3]) # 读入点云数据的x,y,z
-    # o3d.visualization.draw_geometries([pcd]) # 显示原始点云
-
-    # 从点云中获取点，只对点进行处理
-    points = pcd.points 
-    print('total points number is:', pointcloud.shape[0])
+    root_dir = '/home/magictz/Projects/shenlan/dataset/modelnet40_normal_resampled'
+    filenames = os.path.join(root_dir, 'modelnet40_shape_names.txt')
+    filename = []
+    # 根据name文件,逐行读取40个model并显示
+    for line in open(filenames, 'r'):
+        line = line.strip('\n')
+        filename =  os.path.join(root_dir, line, line+'_0001.txt')
     
 
-    # 用PCA分析点云主方向
-    # w: eigenvalues
-    # v: eigenvector
-    w, v = PCA(points)
-    point_cloud_vector = v[:, 2] #点云主方向对应的向量
-    print('the main orientation of this pointcloud is: ', point_cloud_vector)
-    # Decoder: 根据不同成分来还原point cloud
-    new_vector = np.zeros((3,3))
-    new_vector2 = np.zeros((3,3))
-    new_vector3 = np.zeros((3,3))
-    new_vector[:, 0] = v[:,0] # 仅保留主向量
-    new_vector2[:, 0:2] = v[:,0:2] # 保留第一和第二分量
-    new_vector3[:,:] = v[:,:] #保留所有分量
-    #point_cloud_new = pcl_decoder(points, new_vector)
-    #point_cloud_new2 = pcl_decoder(points, new_vector2)
-    #point_cloud_new3 = pcl_decoder(points, new_vector3)
-    
-    # 在原始点云中画出不同分量的方向
-    # 待实现....
-    
-    # 循环计算每个点的法向量
-    # 作业2
-    # 屏蔽开始
-    iter_n = pointcloud.shape[0] # 原始点数(循环次数)
-    knn_n = 5 # 邻近点个数
-    normals = get_normal(pcd, iter_n, knn_n)
+        # Create point cloud file ".ply" (如果需要.ply文件可以使用下面的代码)
+        # plyfile = 'car_0001.ply'
+        # create_ply(array.transpose(), plyfile, abs_path)
+        # filename = os.path.join(abs_path, plyfile)
 
-    # 屏蔽结束
-    normals = np.array(normals, dtype=np.float64)
-    # TODO: 此处把法向量存放在了normals中
-    pcd.normals = o3d.utility.Vector3dVector(normals)
-    o3d.visualization.draw_geometries([pcd])
+        # 加载原始点云(利用open3d)
+        # 方法一: 利用pyntcloud直接读取.txt并创建点云对象
+        # pointcloud_pynt = PyntCloud.from_file(filename, 
+        #                                                         sep=",", 
+        #                                                         header =-1, 
+        #                                                         names = ["x", "y", "z"])
+        # pcd = pointcloud_pynt.to_instance("open3d", mesh = False)
+        # 方法二: 利用自定义readXYZfile()来读取文件
+        pointcloud = readXYZfile(filename, Separator = ",")
+        pcd = o3d.geometry.PointCloud() # 创建一个pointcloud对象pcd
+        pcd.points = o3d.utility.Vector3dVector(pointcloud[:,0:3]) # 读入点云数据的x,y,z
+        o3d.visualization.draw_geometries([pcd]) # 显示原始点云
+
+        # 从点云中获取点，只对点进行处理
+        points = pcd.points 
+        print('total points number is:', pointcloud.shape[0])
     
-    # 显示法向量
-    # 待实现....
+
+        # 用PCA分析点云主方向
+        # w: eigenvalues
+        # v: eigenvector
+        w, v = PCA(points)
+        point_cloud_vector = v[:, 2] #点云主方向对应的向量
+        print('the main orientation of this pointcloud is: ', point_cloud_vector)
+        # Decoder: 根据不同成分来还原point cloud
+        new_vector = np.zeros((3,3))
+        new_vector2 = np.zeros((3,3))
+        new_vector3 = np.zeros((3,3))
+        new_vector[:, 0] = v[:,0] # 仅保留主向量
+        new_vector2[:, 0:2] = v[:,0:2] # 保留第一和第二分量
+        new_vector3[:,:] = v[:,:] #保留所有分量
+        point_cloud_new = pcl_decoder(points, new_vector)
+        point_cloud_new2 = pcl_decoder(points, new_vector2)
+        point_cloud_new3 = pcl_decoder(points, new_vector3)
+    
+        # 在原始点云中画出不同分量的方向
+        # 待实现....
+    
+        # 循环计算每个点的法向量
+        # 作业2
+        # 屏蔽开始
+        iter_n = pointcloud.shape[0] # 原始点云数(即循环次数)
+        knn_n = 5 # 邻近点个数
+        normals = get_normal(pcd, iter_n, knn_n)
+
+        # 屏蔽结束
+        normals = np.array(normals, dtype=np.float64)
+        # TODO: 此处把法向量存放在了normals中
+        pcd.normals = o3d.utility.Vector3dVector(normals)
+        o3d.visualization.draw_geometries([pcd]) # 按住'n'查看法向量
+    
+        # 显示法向量
+        # 待实现....
+    
 
 
 if __name__ == '__main__':
