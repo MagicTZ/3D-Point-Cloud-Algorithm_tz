@@ -15,7 +15,7 @@ class K_Means(object):
     # 功能：根据Dataset拟合模型
     # Input:
     #       data: 原始数据集, N*D（N: 样本数；D: 数据维度）
-    def fit(self, data):
+    def fit(self, data, method = 'mean'):
         # 作业1
         # 屏蔽开始
         # 初值选取 (从原始数据集中随机选点作为类别中心)
@@ -54,14 +54,19 @@ class K_Means(object):
             #print(new_data)      
 
             # Maximum Step (M step)
-            # 计算新的中心点位置（这里直接用mean)
-            for class_n in range(k):
-                c_n = 0
-                for i in range(N):
-                    if new_data[i,0] == class_n:
-                        new_data_center[class_n,:] += new_data[i, 1:k+1] # K*D
-                        c_n += 1
-                new_data_center[class_n, :] = new_data_center[class_n, :] / c_n # 新中心点
+            # 计算新的中心点位置
+            # 方法1：计算mean作为聚类中心
+            if method == 'mean':
+                for class_n in range(k):
+                    c_n = 0
+                    for i in range(N):
+                        if new_data[i,0] == class_n:
+                            new_data_center[class_n,:] += new_data[i, 1:k+1] # K*D
+                            c_n += 1
+                    new_data_center[class_n, :] = new_data_center[class_n, :] / c_n # 新中心点
+            # 方法2：计算medoid作为聚类中心
+            #if method == 'medoid':
+            
             #print(new_data_center)
             
             # 更新loss 
@@ -88,8 +93,11 @@ class K_Means(object):
         result = []
         # 作业2
         # 屏蔽开始
-        N =  p_datas.shape[0]
-        k = self.k_
+        if p_datas is None:
+            return False
+
+        N =  p_datas.shape[0] # 样本数
+        k = self.k_ # 类别数
         data_center = cp.deepcopy(self.cluster_center)
 
         #data_class_idx = np.zeros((N,1),dtype = int) # N * 1
