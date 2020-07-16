@@ -179,26 +179,6 @@ def contains(query: np.ndarray, radius: float, octant:Octant):
     query_offset_to_farthest_corner = query_offset_abs + octant.extent
     return np.linalg.norm(query_offset_to_farthest_corner) < radius
 
-# 功能：在octree中查找信息
-# 输入：
-#    root: octree
-#    db：原始数据
-#    result_set: 索引结果
-#    query：索引信息
-def octree_radius_search_fast(root: Octant, db: np.ndarray, result_set: RadiusNNResultSet, query: np.ndarray):
-    if root is None:
-        return False
-
-    # 作业5
-    # 提示：尽量利用上面的inside、overlaps、contains等函数
-    # 屏蔽开始
-
-    # 直接在octree_radius_search()里修改了
-    
-    # 屏蔽结束
-
-    return inside(query, result_set.worstDist(), root)
-
 
 # 功能：在octree中查找radius范围内的近邻
 # 输入：
@@ -206,10 +186,11 @@ def octree_radius_search_fast(root: Octant, db: np.ndarray, result_set: RadiusNN
 #     db: 原始数据
 #     result_set: 搜索结果
 #     query: 搜索信息
-def octree_radius_search(root: Octant, db: np.ndarray, result_set: RadiusNNResultSet, query: np.ndarray, search = ''):
+def octree_radius_search(root: Octant, db: np.ndarray, result_set: RadiusNNResultSet, query: np.ndarray, search = 'normal'):
     if root is None:
         return False
 
+    # 作业5
     # 另外一种极端情况：查询半径已经包括了整个区域
     if search == 'fast':
         if contains(query, result_set.worstDist(), root):
@@ -219,7 +200,7 @@ def octree_radius_search(root: Octant, db: np.ndarray, result_set: RadiusNNResul
             for i in range(diff.shape[0]):
                 result_set.add_point(diff[i], root.point_indices[i])
             return False
-
+    
     # 如果是叶子，则将该区域内返回到result_set
     if root.is_leaf and len(root.point_indices) > 0:
         # compare the contents of a leaf
@@ -232,18 +213,20 @@ def octree_radius_search(root: Octant, db: np.ndarray, result_set: RadiusNNResul
 
     # 作业6
     # 屏蔽开始
-    child_idx = 0
-    # 判断所查询点在八叉树的位置
-    if query[0] > root.center[0]:
-        child_idx = child_idx | 1
-    if query[1] > root.center[1]:
-        child_idx = child_idx | 2
-    if query[2] > root.center[2]:
-        child_idx = child_idx | 4
-    
-    # 递归判断是否在该区域就可以找到足够多的点
-    if octree_radius_search(root.children[child_idx], db, result_set, query):
-        return True
+    child_idx = -1
+    if search == 'normal':
+        child_idx = 0
+        # 判断所查询点在八叉树的位置
+        if query[0] > root.center[0]:
+            child_idx = child_idx | 1
+        if query[1] > root.center[1]:
+            child_idx = child_idx | 2
+        if query[2] > root.center[2]:
+            child_idx = child_idx | 4
+        
+        # 递归判断是否在该区域就可以找到足够多的点
+        if octree_radius_search(root.children[child_idx], db, result_set, query, search):
+            return True
 
     # 没有在查询点区域找到，对其他区域进行搜索
     for c, child in enumerate(root.children):
@@ -251,7 +234,7 @@ def octree_radius_search(root: Octant, db: np.ndarray, result_set: RadiusNNResul
             continue
         if False == overlaps(query, result_set.worstDist(), child): # 搜索区域与查询点和最坏距离构成的球面没有交点，skip
             continue
-        if octree_radius_search(child, db, result_set, query): # 其他情况可以进入搜索区域搜索（递归）
+        if octree_radius_search(child, db, result_set, query, search): # 其他情况可以进入搜索区域搜索（递归）
             return True
     # 屏蔽结束
 
@@ -325,7 +308,7 @@ def octree_construction(db_np, leaf_size, min_extent):
 
 def main():
     # configuration
-    db_size = 64000
+    db_size = 120000
     dim = 3
     leaf_size = 4
     min_extent = 0.0001
@@ -354,32 +337,36 @@ def main():
     # 测试octree_radius_search（Normal）
     begin_t = time.time()
     print("Radius search normal:")
+    # 随机抽取100个点进行搜索
     for i in range(100):
-        query = np.random.rand(3)
-        result_set = RadiusNNResultSet(radius=0.5)
+        query = db_np[root.point_indices[0]]
+        # query = np.random.rand(3)
+        result_set = RadiusNNResultSet(radius=0.1)
         octree_radius_search(root, db_np, result_set, query)
-    # print(result_set)
+    #print(result_set)
     print("Search takes %.3fms\n" % ((time.time() - begin_t) * 1000))
-
+    
     # 测试radius_search (fast)
     begin_t = time.time()
     print("Radius search fast:")
     for i in range(100):
-        query = np.random.rand(3) # 这里有点小问题：查找点应该保持相同(deep.copy)
-        result_set = RadiusNNResultSet(radius = 0.5)
+        query = db_np[root.point_indices[0]]
+        #query = np.random.rand(3) # 这里有点小问题：查找点应该保持相同(deep.copy)
+        result_set = RadiusNNResultSet(radius = 0.1)
         #octree_radius_search_fast(root, db_np, result_set, query)
         octree_radius_search(root, db_np, result_set, query, search = 'fast')
-    # print(result_set)
+    #print(result_set)
     print("Search takes %.3fms\n" % ((time.time() - begin_t)*1000))
 
     # 测试knn_search
     begin_t = time.time()
     print("KNN search :")
-    for i in range(100):
+    for i in range(10000):
+        #query = db_np[root.point_indices[0]]
         query = np.random.rand(3) # 这里有点小问题：查找点应该保持相同(deep.copy)
         result_set = KNNResultSet(capacity = k)
         octree_knn_search(root, db_np, result_set, query)
-    print(result_set)
+    #print(result_set)
     print("Search takes %.3fms\n" % ((time.time() - begin_t)*1000))
 
 
