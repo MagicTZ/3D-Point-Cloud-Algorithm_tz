@@ -2,10 +2,45 @@
 
 import numpy as np
 import copy as cp
+import random
+
+def get_closest_dist(point, centroids):
+    min_dist = np.inf  # 初始设为无穷大
+    for i, centroid in enumerate(centroids):
+        dist = np.sum((np.array(centroid) - np.array(point))**2) # 标准差
+        if dist < min_dist:
+            min_dist = dist
+    return min_dist
+
+# 功能：使用轮盘法初始化聚类中心
+# 输入：
+#       data: array, 输入数据
+#       k：int，类别数量
+# 输出：
+#       cluster_centers: 聚类中心
+def get_initial(data: np.array, k: int) -> list:
+    cluster_centers = []
+    data = data.tolist()
+    cluster_centers.append(random.choice(data))
+    d = [0 for _ in range(len(data))]
+    for _ in range(1, k):
+        total = 0.0
+        for i, point in enumerate(data):
+            d[i] = get_closest_dist(point, cluster_centers) # 与最近一个聚类中心的距离
+            total += d[i]
+        total *= random.random()
+        for i, di in enumerate(d): # 轮盘法选出下一个聚类中心；
+            total -= di
+            if total > 0:
+                continue
+            cluster_centers.append(data[i])
+            break
+    return cluster_centers
 
 class K_Means(object):
     cluster_center = []
-    
+    n_points_ = 0
+
     # k是分组数；tolerance‘中心点误差’；max_iter是迭代次数
     def __init__(self, n_clusters=2, tolerance=0.0001, max_iter=300):
         self.k_ = n_clusters
@@ -18,40 +53,39 @@ class K_Means(object):
     def fit(self, data, method = 'mean'):
         # 作业1
         # 屏蔽开始
-        # 初值选取 (从原始数据集中随机选点作为类别中心)
         if data is None:
             return False
-
         k = self.k_
-        data_center = np.zeros((k, data.shape[1])) # 初始点 K*D
-        new_data_center = np.zeros((k, data.shape[1])) # K*D
-        N = data.shape[0]
-        seed_idx = -1 # 用来存储初始点的索引
+        N, D = data.shape
+        # 初始化
+        data_center = np.zeros((k, D)) # 初始点 K*D
+        new_data_center = np.zeros((k, D)) # K*D 
+        # 随机在N个数据点中选取k个初始点
+        #seed_idx = random.sample(list(range(N)),k)
+        #data_center[:,:] = data[seed_idx,:]
+        # 改进：使用Kmeans++选取初始点
+        data_center = get_initial(data, k)
+
+        #print('----------------Initial Points---------------')
+        #print(data_center)   
+
         loss = 1000
         itr = 0
-        
-        # 随机在N个数据点中选取k个初始点
-        for i in range(k):
-            seed_idx = np.random.randint(0,N)
-            data_center[i,:] = data[seed_idx,:]
-        
-        print('----------------Initial Points---------------')
-        print(data_center)   
-
-        while loss > self.tolerance_ and itr < self.max_iter_:
+        tolerance =np.inf
+        while tolerance > self.tolerance_ and itr < self.max_iter_:
             # Expectation Step (E step): fix expectation
-            data_class_idx = np.zeros((N,1),dtype = int) # N * 1
+            label_idx = np.zeros((N,1),dtype = int) # N * 1
             for i in range(N): # 每一个点找到最近的中心（可用kdtree和octree改进）
-                dis_min = 100000000
+                dis_min = np.inf
+                label = 0 # 标签
                 for j in range(k):
-                    temp = np.linalg.norm(data[i,:] - data_center[j,:])
+                    temp = np.sum((data[i] - data_center[j])**2) # 使用标准差来判断距离
                     if temp < dis_min:
                         dis_min = temp
-                        # 修改该点类别
-                        data_class_idx[i,:] = j
-            #print(data_class_idx)
-            new_data = np.hstack((data_class_idx, data)) 
-            #print(new_data)      
+                        label = j   # 修改该点标签
+                label_idx[i,:] = label
+
+            new_data = np.hstack((label_idx, data))   
 
             # Maximum Step (M step)
             # 计算新的中心点位置
@@ -71,16 +105,12 @@ class K_Means(object):
             
             # 更新loss 
             old_loss = loss
-            loss = np.linalg.norm(new_data_center - data_center)
+            loss =np.sum(np.linalg.norm(new_data_center - data_center, axis = 1))
 
-            # 只有在loss减少的时候才更新中心点
-            if loss < old_loss:
-                data_center = cp.deepcopy(new_data_center)
+            data_center = cp.deepcopy(new_data_center)
+            tolerance = abs(loss-old_loss)
             itr += 1
             
-        print('loss: ',loss)
-        print('itr: ',itr)
-        print('分类中心:', data_center)
         self.cluster_center = cp.deepcopy(data_center)
         # 屏蔽结束
 
