@@ -7,18 +7,21 @@ from pyntcloud import PyntCloud
 import matplotlib.pyplot as  plt
 from mpl_toolkits.mplot3d import Axes3D
 
-# 功能：计算PCA的函数
-# 输入：
-#     data：点云，NX3的矩阵
-#     correlation：区分np的cov和corrcoef，不输入时默认为False
-#     sort: 特征值排序，排序是为了其他功能方便使用，不输入时默认为True
-# 输出：
-#     eigenvalues：特征值
-#     eigenvectors：特征向量
-def PCA(data, correlation=False, sort=True):
-    # 作业1
-    # 屏蔽开始
 
+def PCA(data, correlation=False, sort=True):
+    ''' PCA implementation function
+
+    Args:
+        data: point cloud (N*3 matrix).
+        correlation: A boolean indicating if we use covariance matrix or
+            correlation coefficient matrix (default: correlation coefficient 
+            matrix).
+        sort: A boolean indicating if we sort by eigenvalue.
+
+    Returns:
+        eigenvalues: The eigenvalues computed by SVD
+        eigenvectors: The eigenvectors computed by SVD 
+    '''
     # Normalized by the center
     N = np.size(data, 0) # the size of the matrix (row size)
     data_mean = np.mean(data, axis = 0) # [1*3]
@@ -34,7 +37,6 @@ def PCA(data, correlation=False, sort=True):
     U, sigma, VT = np.linalg.svd(H) # U: eigenvector matrix; sigma: eigenvalue matrix
     eigenvectors = U            # [3*3] 
     eigenvalues = sigma     #[1*3]
-    # 屏蔽结束
 
     if sort:
         sort = eigenvalues.argsort()[::-1]
@@ -44,13 +46,16 @@ def PCA(data, correlation=False, sort=True):
     return eigenvalues, eigenvectors
 
 
-# 功能:读入点云文件
-# 输入:
-#       filename: 文件名
-#       Separator: 分隔符号, default = " "
-# 输出:
-#       point(np.array): 点云数据, N*6
 def readXYZfile(filename, Separator = " "):
+    ''' Read the point cloud file
+
+    Args:
+        filename: A string representing point cloud file path.
+        Separator: A charactor used to separate words in every line.
+    
+    Returns:
+        point: An array representing point cloud data (N*6 matrix).
+    '''
     data = [[],[],[],[],[],[]]
     
     num = 0
