@@ -45,7 +45,6 @@ def PCA(data, correlation=False, sort=True):
 
     return eigenvalues, eigenvectors
 
-
 def readXYZfile(filename, Separator = " "):
     ''' Read the point cloud file
 
@@ -84,11 +83,13 @@ def readXYZfile(filename, Separator = " "):
     point = point.transpose() # 6*N to N*6
     return point
 
-
-# 功能: 显示三维点云
-# 输入:
-#       cloud: 点云, 3*N
 def displayCloud(cloud):
+    ''' Display point cloud
+
+    Args:
+        cloud: An 3*N array indicating point cloud data
+    '''
+
     #开始绘图
     fig=plt.figure(dpi=120)
     ax = Axes3D(fig)
